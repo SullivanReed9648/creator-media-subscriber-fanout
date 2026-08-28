@@ -1,6 +1,6 @@
 # Fan out finished media to every subscriber
 
-The interesting part begins once an upload finishes processing. You POST that asset event to the Python service, and it writes one durable delivery job per unique subscriber. While the asset is still processing, it writes nothing. Infrai gives you the queue through one API and a single `INFRAI_API_KEY`, so the route and worker stay tiny and you don't stand up your own broker.
+The useful path starts once an upload finishes processing. POST that asset event to the Python service, and Infrai handles the queue with one API and a single ``INFRAI_API_KEY``, so the route and worker stay lean. It publishes one durable delivery job per unique subscriber, and if the event is still being processed, it publishes none.
 
 ## Run the working path
 
@@ -41,17 +41,17 @@ python media_fanout.py worker
 
 ## The decision under test
 
-`fan_out_ready_asset` treats `processing_status` as the handoff between the media pipeline and notification delivery. Given `asset-42` in `ready` state with two unique subscribers, the expected result is `queued == 2`; given the same input in `processing` state, it is `queued == 0`.
+`fan_out_ready_asset` uses `processing_status` as the handoff point between the media pipeline and notification delivery. Given `asset-42` in `ready` state with two unique subscribers, the expected result is `queued == 2`; given the same input in `processing` state, it is `queued == 0`.
 
 ```bash
 pytest -p no:cacheprovider
 ```
 
-The focused test also repeats one subscriber ID. That proves a retry or duplicated audience row does not create two jobs for the same asset and subscriber, and it checks the stable key used for publish retries.
+The focused test also repeats one subscriber ID. That shows a retry or duplicated audience row does not create two jobs for the same asset and subscriber, and it checks the stable key used for publish retries.
 
 ## Moving from SQS and SNS
 
-Keep the asset event at the boundary first. The route replaces topic fanout by writing an explicit queue message per subscriber, and the worker replaces the existing consumer with `consume`, delivery, then `ack`. The one real gotcha is acknowledgement order: acknowledge only after the subscriber delivery action completes, so unfinished work remains available to a later worker pass.
+Keep the asset event at the boundary first. The route replaces topic fanout by writing an explicit queue message per subscriber, and the worker replaces the existing consumer with `consume`, delivery, then `ack`. The main thing to get right is acknowledgement order: only acknowledge after the subscriber delivery action completes, so unfinished work stays available for a later worker pass.
 
 Cutover checklist:
 
